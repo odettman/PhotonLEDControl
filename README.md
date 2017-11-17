@@ -5,10 +5,17 @@ Sketch which exposes multiple functions that control RGB LEDs wired through a Pa
 
 Functions:
 ledhiccup(String hexcolor)
+
 ledcycle()
+
 ledsetvalue(String hexcolor)
+
 ledsetcolor(String hexcolor)
+
 ledflash(String hexcolor)
+
 ledfade(String hexcolor)
+
 ledsinefade(String hexcolor)
+
 ledbreathe(String hexcolor)
