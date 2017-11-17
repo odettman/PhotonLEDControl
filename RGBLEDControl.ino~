@@ -307,7 +307,6 @@ int ledBreathe(String hexValue) {
     /* Credit for algorithm to Luca Soltoggio - 2015 (NonBlockingBreathingLed 0.1)
         12 May 2015
         http://www.arduinoelettronica.com/
-	https://arduinoelectronics.wordpress.com/2015/05/12/non-blocking-breathing-led/
         https://arduinoelectronics.wordpress.com/
         http://minibianpi.wodpress.com/
  
