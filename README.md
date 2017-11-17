@@ -7,3 +7,4 @@ Functions:
 ledhiccup(String hexcolor)
 ledcycle()
 ledsetvalue(String hexcolor)
+ledsetcolor(String hexcolor)
