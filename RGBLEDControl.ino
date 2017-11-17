@@ -1,28 +1,47 @@
-// Control RGB LEDs wired through Particle Photon
-// Author: O. Dettman
+#include <math.h>
+
+// color swirl! connect an RGB LED to the PWM pins as indicated
+// in the #defines
+// public domain, enjoy!
  
 #define REDPIN D0
 #define GREENPIN D1
 #define BLUEPIN D2
 
 #define FADESPEED 5     // make this higher to slow down
+int fade_delay = 3;
+unsigned long fade_time = millis();
 
-String mode = "flash";
+String mode = "hiccup";
 String color = "0F0F0F";
-int brightness = 0;
+int brightness = 100; // percentage value used for calculating brightness
+int fadedirection = -1;
+int i=0;
+double fMultiplier = 0;
+double debugvalue;
+
 
 void setup() {
   pinMode(REDPIN, OUTPUT);
   pinMode(GREENPIN, OUTPUT);
   pinMode(BLUEPIN, OUTPUT);
   
+  Particle.function("ledhiccup",ledHiccup);
   Particle.function("ledcycle",ledCycle);
   Particle.function("ledsetvalue",ledSetValue);
   Particle.function("ledsetcolor",ledSetColor);
   Particle.function("ledflash",ledFlash);
   Particle.function("ledfade",ledFade);
+  Particle.function("ledsinefade",ledSineFade);
+  Particle.function("ledbreathe",ledBreathe);
+  
   Particle.variable("LEDMode", mode);
-  Particle.variable("LEDColor", color);
+  //Particle.variable("LEDColor", color);
+  Particle.variable("Brightness", brightness);
+  Particle.variable("fMultiplier", fMultiplier);
+  Particle.variable("Debug Value", debugvalue);
+  Particle.variable("Fade Dir",fadedirection);
+  
 }
 
 void loop() {
@@ -32,6 +51,12 @@ void loop() {
         ledCycle("ignored");
     } else if (mode.equalsIgnoreCase("fade")) {
         ledFade(color);
+    } else if (mode.equalsIgnoreCase("sine")) {
+        ledSineFade(color);
+    } else if (mode.equalsIgnoreCase("breathe")) {
+        ledBreathe(color);
+    } else if (mode.equalsIgnoreCase("hiccup")) {
+        ledHiccup(color);
     }
 }
 
@@ -75,7 +100,7 @@ int ledCycle(String fspeed) {
     delay(FADESPEED);
   } 
   
-  return 1;
+  return EXIT_SUCCESS;
  
 }
 
@@ -86,7 +111,7 @@ int ledSetValue(String hexValue) {
     
     if (hexValue.length() != 6) {
         //error - need 6-digit hex value
-        return 0;
+        return EXIT_FAILURE;
     }
     
     mode = "solid";
@@ -100,7 +125,7 @@ int ledSetValue(String hexValue) {
     analogWrite(GREENPIN, g);
     analogWrite(BLUEPIN, b);
     
-    return 1;
+    return EXIT_SUCCESS;
 }
 
 int ledSetColor(String color) {
@@ -162,12 +187,12 @@ int ledSetColor(String color) {
         analogWrite(GREENPIN, 0);
         analogWrite(BLUEPIN, 0);
 
-        return 0;
+        return EXIT_FAILURE;
     }
-    return 1;
+    return EXIT_SUCCESS;
 }
 
-int ledFlash(String hexValue) {
+int ledFlash(String hexValue) { // This needs to be rewritten to be non-blocking.
     char rHex[2], gHex[2], bHex[2];
     char hexChar[6];
     mode = "flash";
@@ -175,7 +200,7 @@ int ledFlash(String hexValue) {
 
     if (hexValue.length() != 6) {
         //error - need 6-digit hex value
-        return 0;
+        return EXIT_FAILURE;
     }
     
     int r = getR(hexValue);
@@ -192,7 +217,7 @@ int ledFlash(String hexValue) {
     delay(500);
 
     
-    return 1;
+    return EXIT_SUCCESS;
 
 }
 
@@ -204,41 +229,170 @@ int ledFade(String hexValue) {
 
     if (hexValue.length() != 6) {
         //error - need 6-digit hex value
-        return 0;
+        return EXIT_FAILURE;
+    }
+    if( (fade_time + fade_delay) < millis() ){ // This is a better way to control the delay of the fade. It's non-blocking and should be used by all the methods!
+        int r = getR(hexValue);
+        int g = getG(hexValue);
+        int b = getB(hexValue);
+    
+        if (brightness >= 100) {
+            fadedirection = -1;
+        } else if (brightness <= 0) {
+            fadedirection = 1;
+        }
+        brightness = brightness + fadedirection;
+        
+        r = r * (brightness/100.0);
+        g = g * (brightness/100.0);
+        b = b * (brightness/100.0);
+        
+        analogWrite(REDPIN, r);
+        analogWrite(GREENPIN, g);
+        analogWrite(BLUEPIN, b);
+        fade_time = millis();
     }
     
-    int r = getR(hexValue);
-    int g = getG(hexValue);
-    int b = getB(hexValue);
+    // if (brightness++ > 255) brightness = 0;
+    return EXIT_SUCCESS;
     
-    if (r > brightness) {
-        r = r-brightness;
-    } else {
-        r=0;
-    }
+}
 
-    if (g > brightness) {
-        g = g-brightness;
-    } else {
-        g=0;
-    }
+int ledSineFade(String hexValue) {
+    char rHex[2], gHex[2], bHex[2];
+    char hexChar[6];
+    mode = "sine";
+    color = hexValue;
+    double fr, fg, fb, x;
 
-    if (b > brightness) {
-        b = b-brightness;
-    } else {
-        b=0;
+    if (hexValue.length() != 6) {
+        //error - need 6-digit hex value
+        return EXIT_FAILURE;
     }
     
-    analogWrite(REDPIN, r);
-    analogWrite(GREENPIN, g);
-    analogWrite(BLUEPIN, b);
+    if( (fade_time + fade_delay) < millis() ){ // This is a better way to control the delay of the fade. It's non-blocking and should be used by all the methods!
+        int r = getR(hexValue);
+        int g = getG(hexValue);
+        int b = getB(hexValue);
     
-    delay(FADESPEED);
+        if (brightness >=  1000) {
+            fadedirection = -1;
+        } else if (brightness <= 0) {
+            fadedirection = 1;
+        }
+        brightness += fadedirection;
+        x = brightness / 1000.0; // Convert to percentage
+        x = x * 2.0 * M_PI; // Convert to radians
     
-    if (brightness++ > 255) brightness = 0;
+    // fMultiplier is based on a sine wave that has been shifted up one (to get a value between zero and one)
+    //  and pi/2 (90 degrees) to the right. A full wave still happens between zero and 2pi.
+        fMultiplier = (sin(x - M_PI/2.0) + 1.0) /2.0;
+    
+        fr = fMultiplier * r;
+        fg = fMultiplier * g;
+        fb = fMultiplier * b;
+
+    
+        analogWrite(REDPIN, (int)fr);
+        analogWrite(GREENPIN, (int)fg);
+        analogWrite(BLUEPIN, (int)fb);
+        fade_time = millis();    
+    }
+    
+    return EXIT_SUCCESS;
+    
+}
+
+int ledBreathe(String hexValue) {
+    /* Credit for algorithm to Luca Soltoggio - 2015 (NonBlockingBreathingLed 0.1)
+        12 May 2015
+        http://www.arduinoelettronica.com/
+        https://arduinoelectronics.wordpress.com/
+        http://minibianpi.wodpress.com/
+ 
+        Use a exp + sin function to recreate a
+        non-blocking breathing led effect
+ 
+        Released under GPL v.2 license
+        
+        Modified on 20171114 by Oliver Dettman to accomodate for RGB LED
+          by changing the amplitude of the function to 1 (was 255)
+          and using it as a multiplier for each element of the RGB values
+    */
+    char rHex[2], gHex[2], bHex[2];
+    char hexChar[6];
+    mode = "breathe";
+    color = hexValue;
+    double fr, fg, fb;
+
+    if (hexValue.length() != 6) {
+        //error - need 6-digit hex value
+        return EXIT_FAILURE;
+    }
+    
+    if( (fade_time + fade_delay) < millis() ){ // This is a better way to control the delay of the fade. It's non-blocking and should be used by all the methods!
+        int r = getR(hexValue);
+        int g = getG(hexValue);
+        int b = getB(hexValue);
+    
+        fade_time = millis();
+    
+        fMultiplier = (exp(sin(i/2000.0*M_PI*10)) - 0.36787944)*0.425; 
+        // this is the math function recreating the effect
+        
+        fr = fMultiplier * r;
+        fg = fMultiplier * g;
+        fb = fMultiplier * b;
+        
+        analogWrite(REDPIN, fr);
+        analogWrite(GREENPIN, fg);
+        analogWrite(BLUEPIN, fb);
+        
+        i=i+1;
+    }
+    
+    return EXIT_SUCCESS;
     
     
 }
+
+int ledHiccup(String hexValue) {
+
+    char rHex[2], gHex[2], bHex[2];
+    char hexChar[6];
+    mode = "hiccup";
+    color = hexValue;
+    double fr, fg, fb;
+
+    if (hexValue.length() != 6) {
+        //error - need 6-digit hex value
+        return EXIT_FAILURE;
+    }
+    
+    if( (fade_time + fade_delay) < millis() ){ // This is a better way to control the delay of the fade. It's non-blocking and should be used by all the methods!
+        int r = getR(hexValue);
+        int g = getG(hexValue);
+        int b = getB(hexValue);
+
+        fMultiplier = (sin(i/200.0) + cos(3.0*(i/200.0)) + 1.879) / 3.758;  //(exp(sin(i/2000.0*M_PI*10)) - 0.36787944)*0.425; 
+
+        fr = fMultiplier * r;
+        fg = fMultiplier * g;
+        fb = fMultiplier * b;
+        
+        analogWrite(REDPIN, fr);
+        analogWrite(GREENPIN, fg);
+        analogWrite(BLUEPIN, fb);
+        
+        fade_time = millis();
+        i=i+1;
+    }
+    
+    return EXIT_SUCCESS;
+    
+    
+}
+
 
 int getR(String hexValue) {
     char hex[2];
@@ -284,3 +438,5 @@ int getB(String hexValue) {
     int rVal = (int)strtol(hex, NULL, 16);
     return rVal;
 }
+
+
